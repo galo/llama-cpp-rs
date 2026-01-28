@@ -6,6 +6,9 @@
 //! Usage:
 //!   cargo run --release -p cli -- --model path/to/model.gguf
 //!   cargo run --release -p cli -- hf-model TheBloke/Llama-2-7B-GGUF llama-2-7b.Q4_K_M.gguf
+//!   
+//!   # Enable thinking mode (for compatible models like DeepSeek-R1)
+//!   cargo run --release -p cli -- --model path/to/model.gguf --enable-thinking
 
 use std::io::{self, BufRead, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -75,6 +78,10 @@ struct Args {
     /// Use flash attention
     #[arg(long)]
     flash_attn: bool,
+
+    /// Enable thinking mode (for compatible models like DeepSeek-R1)
+    #[arg(long)]
+    enable_thinking: bool,
 
     /// Show timing information after each response
     #[arg(long)]
@@ -150,6 +157,7 @@ impl CliContext {
         temperature: f32,
         top_p: f32,
         repeat_penalty: f32,
+        enable_thinking: bool,
     ) -> Self {
         let mut messages = Vec::new();
         if let Some(prompt) = system_prompt {
@@ -162,7 +170,11 @@ impl CliContext {
         default_params.top_p = top_p;
         default_params.repeat_penalty = repeat_penalty;
         default_params.stream = true;
-        default_params.timings_per_token = true;
+        default_params.timings_per_token = false;
+        // Configure template kwargs
+        if enable_thinking {
+            default_params.template_kwargs.insert("enable_thinking".to_string(), "1".to_string());
+        }
 
         Self {
             ctx_server,
@@ -340,6 +352,7 @@ fn main() -> Result<()> {
         args.temperature,
         args.top_p,
         args.repeat_penalty,
+        args.enable_thinking,
     );
 
     // Setup Ctrl+C handler

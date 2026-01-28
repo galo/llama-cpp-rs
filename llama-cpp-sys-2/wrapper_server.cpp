@@ -265,6 +265,17 @@ bool llama_server_response_reader_post_completion(
         // Parse messages JSON
         task.cli_input = json::parse(messages_json);
         
+        // Add template kwargs to cli_input if provided
+        if (params && params->template_kwargs_keys && params->template_kwargs_values && params->template_kwargs_count > 0) {
+            json kwargs = json::object();
+            for (size_t i = 0; i < params->template_kwargs_count; i++) {
+                if (params->template_kwargs_keys[i] && params->template_kwargs_values[i]) {
+                    kwargs[params->template_kwargs_keys[i]] = params->template_kwargs_values[i];
+                }
+            }
+            task.cli_input["chat_template_kwargs"] = kwargs;
+        }
+        
         // Add files if provided
         if (file_buffers && file_sizes && file_count > 0) {
             for (size_t i = 0; i < file_count; i++) {
@@ -486,6 +497,10 @@ llama_server_task_params llama_server_task_params_default(void) {
     
     params.antiprompt = nullptr;
     params.antiprompt_count = 0;
+    
+    params.template_kwargs_keys = nullptr;
+    params.template_kwargs_values = nullptr;
+    params.template_kwargs_count = 0;
     
     return params;
 }

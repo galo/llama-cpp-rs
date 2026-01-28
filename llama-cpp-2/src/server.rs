@@ -240,6 +240,8 @@ pub struct ServerTaskParams {
     pub mirostat_eta: f32,
     /// Stop sequences
     pub antiprompt: Vec<String>,
+    /// Chat template kwargs (e.g., "enable_thinking" -> "true")
+    pub template_kwargs: std::collections::HashMap<String, String>,
 }
 
 impl Default for ServerTaskParams {
@@ -269,13 +271,14 @@ impl Default for ServerTaskParams {
             mirostat_tau: 5.0,
             mirostat_eta: 0.1,
             antiprompt: Vec::new(),
+            template_kwargs: std::collections::HashMap::new(),
         }
     }
 }
 
 impl ServerTaskParams {
     /// Convert to FFI struct, returning the struct and owned CStrings that must live as long as the struct is used.
-    fn to_ffi(&self) -> (llama_server_task_params, Vec<CString>, Vec<*const i8>) {
+    fn to_ffi(&self) -> (llama_server_task_params, Vec<CString>, Vec<*const i8>, Vec<CString>, Vec<CString>, Vec<*const i8>, Vec<*const i8>) {
         let mut params = unsafe { llama_server_task_params_default() };
 
         params.stream = self.stream;
@@ -317,7 +320,27 @@ impl ServerTaskParams {
             params.antiprompt_count = ptrs.len();
         }
 
-        (params, cstrings, ptrs)
+        // Convert template_kwargs to parallel arrays
+        let mut kwargs_keys: Vec<CString> = Vec::new();
+        let mut kwargs_values: Vec<CString> = Vec::new();
+        
+        for (key, value) in &self.template_kwargs {
+            if let (Ok(k), Ok(v)) = (CString::new(key.as_str()), CString::new(value.as_str())) {
+                kwargs_keys.push(k);
+                kwargs_values.push(v);
+            }
+        }
+
+        let kwargs_key_ptrs: Vec<*const i8> = kwargs_keys.iter().map(|cs| cs.as_ptr()).collect();
+        let kwargs_value_ptrs: Vec<*const i8> = kwargs_values.iter().map(|cs| cs.as_ptr()).collect();
+
+        if !kwargs_key_ptrs.is_empty() {
+            params.template_kwargs_keys = kwargs_key_ptrs.as_ptr() as *mut *const i8;
+            params.template_kwargs_values = kwargs_value_ptrs.as_ptr() as *mut *const i8;
+            params.template_kwargs_count = kwargs_key_ptrs.len();
+        }
+
+        (params, cstrings, ptrs, kwargs_keys, kwargs_values, kwargs_key_ptrs, kwargs_value_ptrs)
     }
 }
 
@@ -588,7 +611,7 @@ impl ResponseReader {
         let messages_cstr = CString::new(messages_json)
             .map_err(|e| ServerError::InvalidJson(e.to_string()))?;
 
-        let (ffi_params, _cstrings, _ptrs) = params.to_ffi();
+        let (ffi_params, _cstrings, _ptrs, _kwargs_keys, _kwargs_values, _kwargs_key_ptrs, _kwargs_value_ptrs) = params.to_ffi();
 
         // Prepare file buffers
         let file_ptrs: Vec<*const u8> = files.iter().map(|f| f.as_ptr()).collect();

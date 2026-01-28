@@ -78,6 +78,12 @@ typedef struct llama_server_task_params {
     // Antiprompt strings (stop sequences)
     const char ** antiprompt;
     size_t antiprompt_count;
+
+    // Template kwargs (key-value pairs for chat template configuration)
+    // Arrays must have same length: template_kwargs_keys[i] pairs with template_kwargs_values[i]
+    const char ** template_kwargs_keys;
+    const char ** template_kwargs_values;
+    size_t template_kwargs_count;
 } llama_server_task_params;
 
 //
