@@ -3,6 +3,7 @@
 // Include llama.cpp server infrastructure headers
 #include "llama.cpp/common/common.h"
 #include "llama.cpp/common/arg.h"
+#include "llama.cpp/common/log.h"
 #include "llama.cpp/tools/server/server-context.h"
 #include "llama.cpp/tools/server/server-task.h"
 #include "llama.cpp/tools/server/server-queue.h"
@@ -106,6 +107,7 @@ bool llama_server_context_load_model(
     ctx->params.use_mmap = use_mmap;
     ctx->params.use_mlock = use_mlock;
     ctx->params.flash_attn_type = static_cast<llama_flash_attn_type>(flash_attn_type);
+    ctx->params.reasoning_format = COMMON_REASONING_FORMAT_AUTO; //// Same as deepseek, using `message.reasoning_content`
     
     if (chat_template && strlen(chat_template) > 0) {
         ctx->params.chat_template = chat_template;
@@ -283,7 +285,8 @@ bool llama_server_response_reader_post_completion(
         inputs.use_jinja             = chat_params.use_jinja;
         inputs.parallel_tool_calls   = false;
         inputs.add_generation_prompt = true;
-        inputs.enable_thinking       = chat_params.enable_thinking;
+        // Only enable thinking if both the template supports it AND the client requests it
+        inputs.enable_thinking       = chat_params.enable_thinking && (params ? params->enable_thinking : false);
         
         // Apply chat template to format the messages
         auto formatted = common_chat_templates_apply(chat_params.tmpls.get(), inputs);
@@ -291,10 +294,13 @@ bool llama_server_response_reader_post_completion(
         
         // Set chat parser params
         task.params.chat_parser_params = common_chat_parser_params(formatted);
-        task.params.chat_parser_params.reasoning_format = COMMON_REASONING_FORMAT_DEEPSEEK;
+        task.params.chat_parser_params.reasoning_format = COMMON_REASONING_FORMAT_AUTO;
         if (!formatted.parser.empty()) {
             task.params.chat_parser_params.parser.load(formatted.parser);
         }
+
+        // Log the formatted prompt for debugging
+        LOG_INF("Formatted prompt:\n%s\n", task.cli_prompt.c_str());
         
         // Add files if provided
         if (file_buffers && file_sizes && file_count > 0) {
@@ -494,6 +500,7 @@ llama_server_task_params llama_server_task_params_default(void) {
     params.return_progress = false;
     params.timings_per_token = true;
     params.post_sampling_probs = false;
+    params.enable_thinking = false;
     
     params.n_keep = 0;
     params.n_discard = 0;
@@ -519,6 +526,10 @@ llama_server_task_params llama_server_task_params_default(void) {
     params.antiprompt_count = 0;
     
     return params;
+}
+
+void llama_server_set_log_verbosity(int32_t verbosity) {
+    common_log_set_verbosity_thold(verbosity);
 }
 
 } // extern "C"
