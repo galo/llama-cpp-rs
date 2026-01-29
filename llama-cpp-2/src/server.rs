@@ -278,6 +278,8 @@ pub struct ServerTaskParams {
     pub mirostat_eta: f32,
     /// Stop sequences
     pub antiprompt: Vec<String>,
+    /// Enable thinking mode
+    pub enable_thinking: bool,
 }
 
 impl Default for ServerTaskParams {
@@ -307,6 +309,7 @@ impl Default for ServerTaskParams {
             mirostat_tau: 5.0,
             mirostat_eta: 0.1,
             antiprompt: Vec::new(),
+            enable_thinking: true,
         }
     }
 }
@@ -339,6 +342,7 @@ impl ServerTaskParams {
         params.mirostat = self.mirostat;
         params.mirostat_tau = self.mirostat_tau;
         params.mirostat_eta = self.mirostat_eta;
+        params.enable_thinking = self.enable_thinking;
 
         // Convert antiprompt strings
         let cstrings: Vec<CString> = self
