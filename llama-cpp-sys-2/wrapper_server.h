@@ -54,6 +54,7 @@ typedef struct llama_server_task_params {
     bool return_progress;
     bool timings_per_token;
     bool post_sampling_probs;
+    bool enable_thinking;
 
     int32_t n_keep;
     int32_t n_discard;

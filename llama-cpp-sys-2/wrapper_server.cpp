@@ -285,7 +285,8 @@ bool llama_server_response_reader_post_completion(
         inputs.use_jinja             = chat_params.use_jinja;
         inputs.parallel_tool_calls   = false;
         inputs.add_generation_prompt = true;
-        inputs.enable_thinking       = chat_params.enable_thinking;
+        // Only enable thinking if both the template supports it AND the client requests it
+        inputs.enable_thinking       = chat_params.enable_thinking && (params ? params->enable_thinking : false);
         
         // Apply chat template to format the messages
         auto formatted = common_chat_templates_apply(chat_params.tmpls.get(), inputs);
@@ -499,6 +500,7 @@ llama_server_task_params llama_server_task_params_default(void) {
     params.return_progress = false;
     params.timings_per_token = true;
     params.post_sampling_probs = false;
+    params.enable_thinking = false;
     
     params.n_keep = 0;
     params.n_discard = 0;
